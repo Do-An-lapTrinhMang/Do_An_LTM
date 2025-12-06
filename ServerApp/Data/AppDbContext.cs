@@ -1,4 +1,5 @@
 ﻿using ClientApp.Models;
+using ServerApp.Configurations;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -17,5 +18,14 @@ namespace ServerApp.Data
 
         public DbSet<User> Users { get; set; }
         public DbSet<History> Histories { get; set; }
+
+        protected override void OnModelCreating(DbModelBuilder modelBuilder)
+        {
+            // Đăng ký các configuration
+            modelBuilder.Configurations.Add(new UserConfiguration());
+            modelBuilder.Configurations.Add(new HistoryConfiguration());
+
+            base.OnModelCreating(modelBuilder);
+        }
     }
 }
