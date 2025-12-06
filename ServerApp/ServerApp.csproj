@@ -74,9 +74,6 @@
     <Compile Include="ServerMainForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Migrations\202512051750207_Init.cs" />
-    <Compile Include="Migrations\202512051750207_Init.Designer.cs">
-      <DependentUpon>202512051750207_Init.cs</DependentUpon>
     <Compile Include="Migrations\202512061458544_Init.cs" />
     <Compile Include="Migrations\202512061458544_Init.Designer.cs">
       <DependentUpon>202512061458544_Init.cs</DependentUpon>
