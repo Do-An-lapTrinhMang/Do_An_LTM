@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using ClientApp.Services;
 
 namespace ClientApp
 {
@@ -24,15 +25,19 @@ namespace ClientApp
         private void InitializeComponent()
         {
             this.SuspendLayout();
-            
-            this.ClientSize = new Size(450, 500);
-            this.Text = "Đăng nhập";
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            // 
+            // LoginForm
+            // 
+            this.BackColor = System.Drawing.Color.White;
+            this.ClientSize = new System.Drawing.Size(450, 500);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
-            this.BackColor = Color.White;
-            
+            this.Name = "LoginForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "Đăng nhập";
+            this.Load += new System.EventHandler(this.LoginForm_Load);
             this.ResumeLayout(false);
+
         }
 
         private void InitializeCustomComponents()
@@ -144,9 +149,31 @@ namespace ClientApp
                 return;
             }
 
-            // TODO: Implement login logic here
-            MessageBox.Show($"Đăng nhập với username: {username}", "Thông báo", 
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                var authService = new AuthService();
+                var result = authService.Login(username, password);
+                
+                if (result.Success)
+                {
+                    MessageBox.Show($"Đăng nhập thành công!\nXin chào {result.FullName}", "Thành công",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    FileTransferForm transferForm = new FileTransferForm();
+                    transferForm.Show();
+                    this.Hide();
+                }
+                else
+                {
+                    MessageBox.Show(result.ErrorMessage, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không thể kết nối đến server!\n{ex.Message}", "Lỗi kết nối",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void RegisterLinkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -159,6 +186,11 @@ namespace ClientApp
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+        }
+
+        private void LoginForm_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }

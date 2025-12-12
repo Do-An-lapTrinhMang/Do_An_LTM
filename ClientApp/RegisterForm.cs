@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using ClientApp.Services;
 
 namespace ClientApp
 {
@@ -28,15 +29,19 @@ namespace ClientApp
         private void InitializeComponent()
         {
             this.SuspendLayout();
-            
-            this.ClientSize = new Size(450, 600);
-            this.Text = "Đăng ký tài khoản";
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            // 
+            // RegisterForm
+            // 
+            this.BackColor = System.Drawing.Color.White;
+            this.ClientSize = new System.Drawing.Size(450, 600);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
-            this.BackColor = Color.White;
-            
+            this.Name = "RegisterForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "Đăng ký tài khoản";
+            this.Load += new System.EventHandler(this.RegisterForm_Load);
             this.ResumeLayout(false);
+
         }
 
         private void InitializeCustomComponents()
@@ -207,13 +212,31 @@ namespace ClientApp
                 return;
             }
 
-            // TODO: Implement registration logic here
-            MessageBox.Show($"Đăng ký thành công với username: {username}", "Thông báo", 
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            
-            LoginForm loginForm = new LoginForm();
-            loginForm.Show();
-            this.Close();
+            try
+            {
+                var authService = new AuthService();
+                var result = authService.Register(username, password, email);
+                
+                if (result.Success)
+                {
+                    MessageBox.Show("Đăng ký thành công! Vui lòng đăng nhập.", "Thành công",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    
+                    LoginForm loginForm = new LoginForm();
+                    loginForm.Show();
+                    this.Close();
+                }
+                else
+                {
+                    MessageBox.Show(result.ErrorMessage, "Lỗi",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Không thể kết nối đến server!\n{ex.Message}", "Lỗi kết nối",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void LoginLinkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -239,6 +262,11 @@ namespace ClientApp
         protected override void Dispose(bool disposing)
         {
             base.Dispose(disposing);
+        }
+
+        private void RegisterForm_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }

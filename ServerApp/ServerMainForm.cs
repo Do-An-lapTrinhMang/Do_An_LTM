@@ -1,9 +1,12 @@
 using System;
 using System.Drawing;
+using System.IO;
+using System.Text;
 using System.Windows.Forms;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using ServerApp.Services;
 
 namespace ServerApp
 {
@@ -36,15 +39,19 @@ namespace ServerApp
         private void InitializeComponent()
         {
             this.SuspendLayout();
-            
-            this.ClientSize = new Size(700, 600);
-            this.Text = "TCP File Transfer Server";
-            this.StartPosition = FormStartPosition.CenterScreen;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            // 
+            // ServerMainForm
+            // 
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(240)))), ((int)(((byte)(240)))), ((int)(((byte)(240)))));
+            this.ClientSize = new System.Drawing.Size(700, 600);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
-            this.BackColor = Color.FromArgb(240, 240, 240);
-            
+            this.Name = "ServerMainForm";
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.Text = "TCP File Transfer Server";
+            this.Load += new System.EventHandler(this.ServerMainForm_Load);
             this.ResumeLayout(false);
+
         }
 
         private void InitializeCustomComponents()
@@ -302,28 +309,146 @@ namespace ServerApp
 
         private void HandleClient(TcpClient client)
         {
+            string clientIP = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
+            
             try
             {
-                // TODO: Implement client handling logic
-                // - Authentication
-                // - File transfer
-                // - Commands processing
-                
                 NetworkStream stream = client.GetStream();
-                // Add your client handling code here
+                byte[] buffer = new byte[8192];
                 
+                // Đọc request từ client
+                int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                string request = Encoding.UTF8.GetString(buffer, 0, bytesRead).Trim();
+                
+                string[] parts = request.Split('|');
+                string command = parts[0];
+                
+                switch (command)
+                {
+                    case "REGISTER":
+                        HandleRegister(stream, parts, clientIP);
+                        break;
+                    case "LOGIN":
+                        HandleLogin(stream, parts, clientIP);
+                        break;
+                    case "FILE":
+                        HandleFileTransfer(stream, parts, clientIP, buffer);
+                        break;
+                    default:
+                        AddLog($"[{clientIP}] Unknown command: {command}");
+                        byte[] errorResponse = Encoding.UTF8.GetBytes("ERROR|Unknown command\n");
+                        stream.Write(errorResponse, 0, errorResponse.Length);
+                        break;
+                }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR: Client handler exception - {ex.Message}");
+                AddLog($"ERROR [{clientIP}]: {ex.Message}");
             }
             finally
             {
                 client.Close();
                 connectedClients--;
                 UpdateConnectedClients();
-                AddLog("Client disconnected");
+                AddLog($"[{clientIP}] Disconnected");
             }
+        }
+        
+        private void HandleRegister(NetworkStream stream, string[] parts, string clientIP)
+        {
+            // Format: REGISTER|username|password|fullname
+            if (parts.Length != 4)
+            {
+                byte[] response = Encoding.UTF8.GetBytes("ERROR|Invalid format\n");
+                stream.Write(response, 0, response.Length);
+                return;
+            }
+            
+            string username = parts[1];
+            string password = parts[2];
+            string fullName = parts[3];
+            
+            var authService = new AuthService();
+            var result = authService.Register(username, password, fullName);
+            
+            if (result.Success)
+            {
+                byte[] response = Encoding.UTF8.GetBytes("OK|Registration successful\n");
+                stream.Write(response, 0, response.Length);
+                AddLog($"[{clientIP}] User registered: {username}");
+            }
+            else
+            {
+                byte[] response = Encoding.UTF8.GetBytes($"ERROR|{result.ErrorMessage}\n");
+                stream.Write(response, 0, response.Length);
+                AddLog($"[{clientIP}] Register failed: {result.ErrorMessage}");
+            }
+        }
+        
+        private void HandleLogin(NetworkStream stream, string[] parts, string clientIP)
+        {
+            // Format: LOGIN|username|password
+            if (parts.Length != 3)
+            {
+                byte[] response = Encoding.UTF8.GetBytes("ERROR|Invalid format\n");
+                stream.Write(response, 0, response.Length);
+                return;
+            }
+            
+            string username = parts[1];
+            string password = parts[2];
+            
+            var authService = new AuthService();
+            var result = authService.Login(username, password);
+            
+            if (result.Success)
+            {
+                byte[] response = Encoding.UTF8.GetBytes($"OK|{result.UserId}|{result.FullName}\n");
+                stream.Write(response, 0, response.Length);
+                AddLog($"[{clientIP}] Login successful: {username}");
+            }
+            else
+            {
+                byte[] response = Encoding.UTF8.GetBytes($"ERROR|{result.ErrorMessage}\n");
+                stream.Write(response, 0, response.Length);
+                AddLog($"[{clientIP}] Login failed: {username}");
+            }
+        }
+        
+        private void HandleFileTransfer(NetworkStream stream, string[] parts, string clientIP, byte[] buffer)
+        {
+            // Format: FILE|filename|filesize
+            if (parts.Length != 3)
+            {
+                AddLog($"[{clientIP}] Invalid file metadata format");
+                return;
+            }
+            
+            string fileName = parts[1];
+            long fileSize = long.Parse(parts[2]);
+            
+            var fileService = new FileService();
+            fileService.OnLogMessage += (message) => AddLog(message);
+            
+            var result = fileService.ReceiveFile(stream, fileName, fileSize, clientIP);
+            
+            if (!result.Success)
+            {
+                AddLog($"[{clientIP}] File transfer failed: {result.ErrorMessage}");
+            }
+        }
+        
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            int order = 0;
+            double size = bytes;
+            while (size >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                size /= 1024;
+            }
+            return $"{size:0.##} {sizes[order]}";
         }
 
         private void ViewUsersButton_Click(object sender, EventArgs e)
@@ -425,6 +550,11 @@ namespace ServerApp
                 }
             }
             base.Dispose(disposing);
+        }
+
+        private void ServerMainForm_Load(object sender, EventArgs e)
+        {
+
         }
     }
 }
